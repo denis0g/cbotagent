@@ -1,0 +1,5 @@
+.field-input { width: 100%; border: 1px solid rgb(255 255 255 / .1); border-radius: .75rem; background: rgb(2 6 23 / .7); padding: .75rem 1rem; color: white; outline: none; transition: border-color .2s, box-shadow .2s; }
+.field-input::placeholder { color: rgb(100 116 139); }
+.field-input:hover { border-color: rgb(255 255 255 / .2); }
+.field-input:focus { border-color: rgb(129 140 248); box-shadow: 0 0 0 4px rgb(129 140 248 / .1); }
+.field-error { display: block; margin-top: .375rem; color: rgb(253 164 175); font-size: .75rem; }

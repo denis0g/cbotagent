@@ -1,0 +1,18 @@
+<section class="mx-auto w-[calc(100%-2rem)] max-w-xl rounded-3xl border border-white/10 bg-slate-900/70 p-6 shadow-2xl shadow-indigo-950/30 sm:p-10">
+  <div class="mb-8 flex items-center gap-3"><span class="grid h-11 w-11 place-items-center rounded-xl bg-gradient-to-br from-blue-700 to-purple-800"><img src="/bot-mark.svg" alt="" class="h-7 w-7" /></span><div><p class="text-sm font-semibold uppercase tracking-[.18em] text-indigo-300">Get started</p><h1 class="mt-1 text-3xl font-semibold tracking-tight text-white">Create your account</h1></div></div>
+  <p class="mb-7 text-sm text-slate-400">Join Cbot Agent to build and test trading strategies.</p>
+  @if (error()) { <div role="alert" class="mb-5 rounded-xl border border-rose-400/20 bg-rose-400/10 px-4 py-3 text-sm text-rose-200">{{ error() }}</div> }
+  <form [formGroup]="form" (ngSubmit)="submit()" class="space-y-5" novalidate>
+    <label class="block"><span class="mb-2 block text-sm font-medium text-slate-200">Username</span><input formControlName="userName" autocomplete="username" placeholder="Choose a username" class="field-input" />
+      @if (form.controls.userName.touched && form.controls.userName.invalid) { <span class="field-error">Username must be at least 3 characters.</span> }
+    </label>
+    <label class="block"><span class="mb-2 block text-sm font-medium text-slate-200">Email address</span><input formControlName="email" type="email" autocomplete="email" placeholder="you@example.com" class="field-input" />
+      @if (form.controls.email.touched && form.controls.email.invalid) { <span class="field-error">Enter a valid email address.</span> }
+    </label>
+    <label class="block"><span class="mb-2 block text-sm font-medium text-slate-200">Password</span><input formControlName="password" type="password" autocomplete="new-password" placeholder="At least 6 characters" class="field-input" />
+      @if (form.controls.password.touched && form.controls.password.invalid) { <span class="field-error">Password must be at least 6 characters.</span> }
+    </label>
+    <button type="submit" [disabled]="form.invalid || loading()" class="flex w-full items-center justify-center rounded-xl bg-gradient-to-r from-blue-700 to-purple-800 px-4 py-3 font-semibold text-white shadow-lg shadow-indigo-950/40 transition hover:from-blue-600 hover:to-purple-700 active:scale-[.99] disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-300">{{ loading() ? 'Creating account...' : 'Create account' }}</button>
+  </form>
+  <p class="mt-7 text-center text-sm text-slate-400">Already have an account? <a routerLink="/login" class="font-semibold text-indigo-300 transition hover:text-violet-200 hover:underline">Sign in</a></p>
+</section>

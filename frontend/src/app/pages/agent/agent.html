@@ -1,0 +1,30 @@
+<div class="relative flex h-full min-h-0 w-full flex-1 overflow-hidden">
+  <app-conversation-sidebar
+    [conversations]="chat.conversations()"
+    [activeConversationId]="chat.activeConversationId()"
+    [mobileOpen]="mobileSidebarOpen()"
+    (newConversation)="startNewConversation()"
+    (selectConversation)="openConversation($event)"
+    (deleteConversation)="chat.deleteConversation($event)"
+    (closeSidebar)="mobileSidebarOpen.set(false)"
+  />
+  <app-chat-component
+    [messages]="chat.messages()"
+    [conversationTitle]="chat.activeConversation()?.title ?? null"
+    [loading]="chat.loadingMessages()"
+    [sending]="chat.sending()"
+    [progress]="chat.progress()"
+    (sendMessage)="chat.sendMessage($event)"
+    (toggleSidebar)="mobileSidebarOpen.update((open) => !open)"
+  />
+</div>
+
+@if (chat.error()) {
+  <div class="fixed right-5 top-[68px] z-[100] flex w-[min(420px,calc(100vw-32px))] items-start gap-3 rounded-xl border border-red-400/25 bg-[#241719] p-4 text-red-100 shadow-2xl shadow-black/40" role="alert" aria-live="assertive">
+    <svg class="mt-0.5 h-5 w-5 shrink-0 fill-none stroke-red-300 [stroke-linecap:round] [stroke-linejoin:round] [stroke-width:1.6]" viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" cy="10" r="7.5" /><path d="M10 6.5v4m0 3h.01" /></svg>
+    <p class="m-0 min-w-0 flex-1 break-words text-xs leading-5">{{ chat.error() }}</p>
+    <button class="grid h-6 w-6 shrink-0 place-items-center rounded-md text-red-200/70 transition hover:bg-white/10 hover:text-white" type="button" aria-label="Dismiss notification" (click)="chat.clearError()">
+      <svg class="h-4 w-4 fill-none stroke-current [stroke-linecap:round] [stroke-width:1.7]" viewBox="0 0 20 20" aria-hidden="true"><path d="m5 5 10 10M15 5 5 15" /></svg>
+    </button>
+  </div>
+}

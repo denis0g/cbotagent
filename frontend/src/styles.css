@@ -1,0 +1,10 @@
+/* You can add global styles to this file, and also import other style files */
+
+@import 'tailwindcss';
+
+:root { color-scheme: dark; font-family: Inter, ui-sans-serif, system-ui, sans-serif; background: #070b18; font-synthesis: none; text-rendering: optimizeLegibility; }
+html, body { width: 100%; height: 100%; overflow: hidden; }
+body { margin: 0; min-width: 320px; }
+app-top-nav { flex: 0 0 auto; }
+button, a { -webkit-tap-highlight-color: transparent; }
+::selection { background: rgb(129 140 248 / 35%); }
