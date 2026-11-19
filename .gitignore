@@ -1,0 +1,17 @@
+# Local environment and secrets
+.env
+.env.*
+!.env.example
+
+# Temporary cTrader build workspaces
+/temp/
+
+# Backend build output
+backend/bin/
+backend/obj/
+
+# Frontend dependencies and build output
+frontend/node_modules/
+frontend/dist/
+frontend/.angular/
+frontend/src/environments/environment.ts
