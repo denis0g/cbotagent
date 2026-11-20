@@ -5,6 +5,8 @@
 
 # Temporary cTrader build workspaces
 /temp/
+/backend/Algos/*
+!/backend/Algos/.gitkeep
 
 # Backend build output
 backend/bin/
