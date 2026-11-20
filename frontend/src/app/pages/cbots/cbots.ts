@@ -3,6 +3,7 @@ import { Component, OnInit, inject, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { CbotsService } from '../../services/cbotsService';
 import { CbotSummary } from '../../interfaces/cbot_dtos';
+import { AuthService } from '../../services/authService';
 
 @Component({
   imports: [DatePipe, RouterLink],
@@ -10,6 +11,7 @@ import { CbotSummary } from '../../interfaces/cbot_dtos';
 })
 export class Cbots implements OnInit {
   private readonly service = inject(CbotsService);
+  readonly auth = inject(AuthService);
   readonly bots = signal<CbotSummary[]>([]);
   readonly loading = signal(true);
   readonly error = signal('');

@@ -10,9 +10,13 @@ import { TopNav } from './components/top-nav/top-nav';
     <div class="flex h-dvh flex-col overflow-hidden bg-slate-950 text-white">
       <app-top-nav />
       <main
-        class="relative flex min-h-0 w-full flex-1 overflow-hidden"
-        [class.items-center]="!isAgentRoute()"
-        [class.justify-center]="!isAgentRoute()"
+        class="relative flex min-h-0 w-full flex-1"
+        [class.overflow-hidden]="!isCbotDetailRoute()"
+        [class.overflow-y-auto]="isCbotDetailRoute()"
+        [class.cbot-scrollbar]="isCbotDetailRoute()"
+        [class.cbot-scrollbar-page]="isCbotDetailRoute()"
+        [class.items-center]="!isAgentRoute() && !isCbotRoute()"
+        [class.justify-center]="!isAgentRoute() && !isCbotRoute()"
       >
         <router-outlet />
       </main>
@@ -22,10 +26,15 @@ import { TopNav } from './components/top-nav/top-nav';
 export class App {
   private readonly router = inject(Router);
   readonly isAgentRoute = signal(this.router.url.split('?')[0].startsWith('/agent'));
+  readonly isCbotRoute = signal(this.router.url.split('?')[0] === '/cbots' || this.router.url.split('?')[0].startsWith('/cbots/'));
+  readonly isCbotDetailRoute = signal(/^\/cbots\/[^/]+$/.test(this.router.url.split('?')[0]));
 
   constructor() {
     this.router.events.pipe(filter((event) => event instanceof NavigationEnd)).subscribe((event) => {
-      this.isAgentRoute.set((event as NavigationEnd).urlAfterRedirects.split('?')[0].startsWith('/agent'));
+      const url = (event as NavigationEnd).urlAfterRedirects.split('?')[0];
+      this.isAgentRoute.set(url.startsWith('/agent'));
+      this.isCbotRoute.set(url === '/cbots' || url.startsWith('/cbots/'));
+      this.isCbotDetailRoute.set(/^\/cbots\/[^/]+$/.test(url));
     });
   }
 }

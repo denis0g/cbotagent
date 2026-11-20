@@ -8,3 +8,34 @@ body { margin: 0; min-width: 320px; }
 app-top-nav { flex: 0 0 auto; }
 button, a { -webkit-tap-highlight-color: transparent; }
 ::selection { background: rgb(129 140 248 / 35%); }
+
+.cbot-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: var(--cbot-scrollbar-thumb) var(--cbot-scrollbar-track);
+}
+
+.cbot-scrollbar::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+.cbot-scrollbar::-webkit-scrollbar-track {
+  background: var(--cbot-scrollbar-track);
+  border-radius: 999px;
+}
+
+.cbot-scrollbar::-webkit-scrollbar-thumb {
+  background: var(--cbot-scrollbar-thumb);
+  border: 1px solid var(--cbot-scrollbar-track);
+  border-radius: 999px;
+}
+
+.cbot-scrollbar-page {
+  --cbot-scrollbar-track: #0c1428;
+  --cbot-scrollbar-thumb: #263654;
+}
+
+.cbot-scrollbar-code {
+  --cbot-scrollbar-track: #080f20;
+  --cbot-scrollbar-thumb: #263654;
+}

@@ -1,6 +1,7 @@
 export interface CbotSummary {
   id: string;
   name: string;
+  description: string;
   conversationId: string;
   conversationTitle: string;
   initialPrompt: string;
