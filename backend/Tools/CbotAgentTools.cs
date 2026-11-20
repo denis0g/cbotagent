@@ -49,27 +49,29 @@ public sealed class CbotAgentTools(
         [Description("Relevant trading requirements collected in the conversation.")] string strategyDetails,
         CancellationToken cancellationToken = default) => strategyRefiner.RefineAsync(strategyDetails, cancellationToken);
 
-    [Description("Stage 4 only: generate cTrader cBot source from the exact refined strategy the user explicitly approved. Never call before approval. Return the bot name and complete source code.")]
+    [Description("Stage 4 only: generate cTrader cBot source and a concise plain-language description from the exact refined strategy the user explicitly approved. Never call before approval.")]
     public Task<GenerateCbotToolResponse> GenerateCbotCodeAsync(
         [Description("The strategy the user explicitly approved.")] string approvedStrategy,
         CancellationToken cancellationToken = default) => codeGenerator.GenerateAsync(approvedStrategy, cancellationToken);
 
-    [Description("Stage 5 only: after the user explicitly approves the complete source code displayed in the conversation, pass that exact bot name and source unchanged to the deterministic compilation service. Never compile in the code-generation turn or before source approval.")]
-    public async Task<CompileCbotToolResponse> CompileCbotCodeAsync(
-        CompileCbotToolRequest request, CancellationToken cancellationToken = default) =>
-        await compilationAgent.CompileAsync(new CompileCbotToolRequest
+    [Description("Stage 5 only: after the user explicitly approves the complete source code displayed in the conversation, delegate that exact bot name and source unchanged to the cTrader compilation specialist. Never compile in the code-generation turn or before source approval.")]
+    public Task<CompileCbotToolResponse> CompileCbotCodeAsync(
+        CompileCbotToolRequest request, CancellationToken cancellationToken = default)
+        => compilationAgent.CompileAsync(new CompileCbotToolRequest
         {
             BotName = request.BotName,
             SourceCode = request.SourceCode,
+            Description = request.Description,
             UserId = userId,
             ConversationId = conversationId,
             InitialPrompt = initialPrompt
         }, cancellationToken, onCompilationProgress);
 
-    [Description("Stage 5 only: after the user explicitly approves the complete source code displayed in the conversation, pass that exact bot name and source unchanged to the deterministic compilation service. Never compile in the code-generation turn or before source approval.")]
+    [Description("Stage 5 only: after the user explicitly approves the complete source code displayed in the conversation, pass the exact bot name and full approved source unchanged to the cTrader compilation specialist. Also pass the description returned by code generation when available; if unavailable, the server generates one from the source.")]
     public Task<CompileCbotToolResponse> CompileCbotCodeToolAsync(
         [Description("The short name for the cBot. Use letters, numbers, and underscores.")] string botName,
         [Description("The complete C# source code for the cTrader Automate cBot.")] string sourceCode,
+        [Description("The 2–3 sentence description returned with this bot's generated source code, if available.")] string? description = null,
         CancellationToken cancellationToken = default) => CompileCbotCodeAsync(
-            new CompileCbotToolRequest { BotName = botName, SourceCode = sourceCode }, cancellationToken);
+            new CompileCbotToolRequest { BotName = botName, SourceCode = sourceCode, Description = description ?? string.Empty }, cancellationToken);
 }

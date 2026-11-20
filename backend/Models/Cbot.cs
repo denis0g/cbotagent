@@ -8,6 +8,7 @@ public sealed class Cbot
     public Guid ConversationId { get; set; }
     public Conversation Conversation { get; set; } = null!;
     public string Name { get; set; } = string.Empty;
+    public string Description { get; set; } = string.Empty;
     public string InitialPrompt { get; set; } = string.Empty;
     public string SourceCodePath { get; set; } = string.Empty;
     public string? AlgoFilePath { get; set; }

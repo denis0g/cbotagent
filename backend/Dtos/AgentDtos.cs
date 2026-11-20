@@ -74,6 +74,7 @@ public sealed class GenerateCbotToolResponse
 {
     public required string SourceCode { get; init; }
     public required string FileName { get; init; }
+    public string Description { get; init; } = string.Empty;
 }
 
 public sealed class CompileCbotToolRequest
@@ -83,6 +84,7 @@ public sealed class CompileCbotToolRequest
 
     [Required, StringLength(100000, MinimumLength = 1)]
     public required string SourceCode { get; init; }
+    public string Description { get; init; } = string.Empty;
 
     public Guid? BotId { get; init; }
     public Guid? UserId { get; init; }
@@ -94,6 +96,7 @@ public sealed class CompileCbotToolResponse
 {
     public required bool Succeeded { get; init; }
     public required string Output { get; init; }
+    public string? AgentReply { get; init; }
     public string? SourceCodePath { get; init; }
     public string? AlgoFilePath { get; init; }
     public Guid? BotId { get; init; }
@@ -103,6 +106,7 @@ public class CbotSummaryDto
 {
     public required Guid Id { get; init; }
     public required string Name { get; init; }
+    public required string Description { get; init; }
     public required Guid ConversationId { get; init; }
     public required string ConversationTitle { get; init; }
     public required string InitialPrompt { get; init; }

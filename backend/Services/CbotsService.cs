@@ -15,6 +15,7 @@ public sealed class CbotsService(AppDatabaseContext db, IConfiguration configura
             {
                 Id = cbot.Id,
                 Name = cbot.Name,
+                Description = cbot.Description,
                 ConversationId = cbot.ConversationId,
                 ConversationTitle = cbot.Conversation.Title,
                 InitialPrompt = cbot.InitialPrompt,
@@ -35,11 +36,12 @@ public sealed class CbotsService(AppDatabaseContext db, IConfiguration configura
         {
             Id = bot.Id,
             Name = bot.Name,
+            Description = bot.Description,
             ConversationId = bot.ConversationId,
             ConversationTitle = bot.Conversation.Title,
             InitialPrompt = bot.InitialPrompt,
             LastCompileSucceeded = bot.LastCompileSucceeded,
-            HasAlgoFile = bot.AlgoFilePath is not null && File.Exists(ResolvePath(bot.AlgoFilePath)),
+            HasAlgoFile = bot.AlgoFilePath is not null && AlgoFileExists(bot.AlgoFilePath),
             CreatedAt = bot.CreatedAt,
             UpdatedAt = bot.UpdatedAt,
             SourceCode = await File.ReadAllTextAsync(ResolvePath(bot.SourceCodePath), cancellationToken),
@@ -75,6 +77,7 @@ public sealed class CbotsService(AppDatabaseContext db, IConfiguration configura
             UserId = userId,
             ConversationId = conversationId,
             Name = request.BotName,
+            Description = request.Description,
             InitialPrompt = request.InitialPrompt ?? string.Empty,
             SourceCodePath = string.Empty
         };
@@ -85,13 +88,21 @@ public sealed class CbotsService(AppDatabaseContext db, IConfiguration configura
             var directory = Path.Combine(GetStorageRoot(), directoryName);
             Directory.CreateDirectory(directory);
             bot.SourceCodePath = Path.Combine(directoryName, $"{request.BotName}.cs");
-            bot.AlgoFilePath = Path.Combine(directoryName, $"{request.BotName}.algo");
         }
 
-        Directory.CreateDirectory(Path.GetDirectoryName(ResolvePath(bot.SourceCodePath))!);
-        File.Copy(dockerSourcePath, ResolvePath(bot.SourceCodePath), overwrite: true);
-        File.Copy(dockerAlgoPath, ResolvePath(bot.AlgoFilePath!), overwrite: true);
+        var normalizedSourcePath = bot.SourceCodePath
+            .Replace('\\', Path.DirectorySeparatorChar)
+            .Replace('/', Path.DirectorySeparatorChar);
+        var botDirectory = Path.GetDirectoryName(normalizedSourcePath);
+        bot.AlgoFilePath = Path.Combine(botDirectory ?? string.Empty, $"{request.BotName}.algo");
+        var sourceDestination = ResolvePath(bot.SourceCodePath);
+        var algoDestination = ResolveAlgoPath(bot.AlgoFilePath);
+        Directory.CreateDirectory(Path.GetDirectoryName(sourceDestination)!);
+        Directory.CreateDirectory(Path.GetDirectoryName(algoDestination)!);
+        File.Copy(dockerSourcePath, sourceDestination, overwrite: true);
+        File.Copy(dockerAlgoPath, algoDestination, overwrite: true);
         bot.Name = request.BotName;
+        if (!string.IsNullOrWhiteSpace(request.Description)) bot.Description = request.Description.Trim();
         if (string.IsNullOrWhiteSpace(bot.InitialPrompt)) bot.InitialPrompt = request.InitialPrompt ?? string.Empty;
         bot.LastCompileSucceeded = true;
         bot.LastCompileOutput = output;
@@ -116,6 +127,7 @@ public sealed class CbotsService(AppDatabaseContext db, IConfiguration configura
         var sourcePath = ResolvePath(bot.SourceCodePath);
         Directory.CreateDirectory(Path.GetDirectoryName(sourcePath)!);
         await File.WriteAllTextAsync(sourcePath, sourceCode, cancellationToken);
+        bot.Description = string.Empty;
         bot.LastCompileSucceeded = false;
         bot.LastCompileOutput = "Source changed since the last successful compilation.";
         bot.UpdatedAt = DateTime.UtcNow;
@@ -134,6 +146,7 @@ public sealed class CbotsService(AppDatabaseContext db, IConfiguration configura
             UserId = bot.UserId,
             ConversationId = bot.ConversationId,
             InitialPrompt = bot.InitialPrompt,
+            Description = bot.Description,
             BotName = bot.Name,
             SourceCode = await File.ReadAllTextAsync(ResolvePath(bot.SourceCodePath), cancellationToken)
         };
@@ -146,8 +159,18 @@ public sealed class CbotsService(AppDatabaseContext db, IConfiguration configura
         if (bot is null) return null;
         var relativePath = algo ? bot.AlgoFilePath : bot.SourceCodePath;
         if (relativePath is null) return null;
-        var path = ResolvePath(relativePath);
-        return File.Exists(path) ? path : null;
+        if (algo)
+        {
+            var algoPath = ResolveAlgoPath(relativePath);
+            if (File.Exists(algoPath)) return algoPath;
+
+            // Existing records may still point to .algo files stored with source under BotDirectory.
+            var legacyPath = ResolvePath(relativePath);
+            return File.Exists(legacyPath) ? legacyPath : null;
+        }
+
+        var sourcePath = ResolvePath(relativePath);
+        return File.Exists(sourcePath) ? sourcePath : null;
     }
 
     public async Task<bool> SaveFailedCompilationAsync(
@@ -157,6 +180,7 @@ public sealed class CbotsService(AppDatabaseContext db, IConfiguration configura
         var bot = await db.Cbots.FirstOrDefaultAsync(item => item.Id == botId && item.UserId == userId, cancellationToken);
         if (bot is null) return false;
         await File.WriteAllTextAsync(ResolvePath(bot.SourceCodePath), request.SourceCode, cancellationToken);
+        if (!string.IsNullOrWhiteSpace(request.Description)) bot.Description = request.Description.Trim();
         bot.LastCompileSucceeded = false;
         bot.LastCompileOutput = output;
         bot.UpdatedAt = DateTime.UtcNow;
@@ -184,6 +208,33 @@ public sealed class CbotsService(AppDatabaseContext db, IConfiguration configura
             ? Directory.GetParent(contentRoot)?.FullName ?? contentRoot
             : contentRoot;
         return Path.Combine(repoRoot, "Cbots");
+    }
+
+    private string GetAlgoStorageRoot()
+    {
+        var configured = configuration["CTrader:AlgoDirectory"];
+        return string.IsNullOrWhiteSpace(configured)
+            ? Path.Combine(Path.GetFullPath(environment.ContentRootPath), "Algos")
+            : Path.GetFullPath(configured, environment.ContentRootPath);
+    }
+
+    private bool AlgoFileExists(string relativePath)
+    {
+        var algoPath = ResolveAlgoPath(relativePath);
+        if (File.Exists(algoPath)) return true;
+        return File.Exists(ResolvePath(relativePath));
+    }
+
+    private string ResolveAlgoPath(string relativePath)
+    {
+        var normalized = relativePath.Replace('\\', Path.DirectorySeparatorChar).Replace('/', Path.DirectorySeparatorChar);
+        var root = GetAlgoStorageRoot();
+        var path = Path.GetFullPath(Path.Combine(root, normalized));
+        var allowedRoot = Path.GetFullPath(root) + Path.DirectorySeparatorChar;
+        var comparison = OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
+        if (!path.StartsWith(allowedRoot, comparison))
+            throw new InvalidOperationException("The bot artifact path is outside the configured algo storage directory.");
+        return path;
     }
 
     private string ResolvePath(string relativePath)
