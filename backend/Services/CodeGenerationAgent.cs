@@ -39,7 +39,7 @@ public sealed class CodeGenerationAgent
     {
         var turn = await agent.RunAsync($"Generate a cBot for this user-approved strategy:\n{approvedStrategy}",
             cancellationToken: cancellationToken);
-        var response = turn.Text;
+        var response = ExtractJsonObject(turn.Text);
         try
         {
             var generated = System.Text.Json.JsonSerializer.Deserialize<GenerateCbotToolResponse>(response,
@@ -57,7 +57,7 @@ public sealed class CodeGenerationAgent
         }
         catch (System.Text.Json.JsonException exception)
         {
-            throw new InvalidOperationException("Code generation response was not valid JSON.", exception);
+            throw new InvalidOperationException("Code generation response did not contain a valid JSON object.", exception);
         }
     }
 
@@ -75,5 +75,42 @@ public sealed class CodeGenerationAgent
     {
         var normalized = string.Join(' ', description.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries));
         return normalized.Length <= 360 ? normalized : $"{normalized[..357].TrimEnd()}…";
+    }
+
+    private static string ExtractJsonObject(string response)
+    {
+        var text = response.Trim();
+        if (text.StartsWith("```", StringComparison.Ordinal))
+        {
+            var firstLineBreak = text.IndexOf('\n');
+            text = firstLineBreak >= 0 ? text[(firstLineBreak + 1)..] : text[3..];
+            var closingFence = text.LastIndexOf("```", StringComparison.Ordinal);
+            if (closingFence >= 0) text = text[..closingFence];
+            text = text.Trim();
+        }
+
+        var start = text.IndexOf('{');
+        if (start < 0) return text;
+
+        var depth = 0;
+        var insideString = false;
+        var escaped = false;
+        for (var index = start; index < text.Length; index++)
+        {
+            var character = text[index];
+            if (insideString)
+            {
+                if (escaped) escaped = false;
+                else if (character == '\\') escaped = true;
+                else if (character == '"') insideString = false;
+                continue;
+            }
+
+            if (character == '"') insideString = true;
+            else if (character == '{') depth++;
+            else if (character == '}' && --depth == 0) return text[start..(index + 1)];
+        }
+
+        return text[start..];
     }
 }
