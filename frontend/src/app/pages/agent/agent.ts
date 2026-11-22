@@ -3,6 +3,7 @@ import { ActivatedRoute, Router } from '@angular/router';
 import { AgentChatService } from '../../services/agentChatService';
 import { ChatComponent } from '../../components/chat-component/chat-component';
 import { ConversationSidebar } from '../../components/conversation-sidebar/conversation-sidebar';
+import { BacktestLaunchService } from '../../services/backtestLaunchService';
 
 @Component({
   imports: [ConversationSidebar, ChatComponent],
@@ -14,13 +15,21 @@ export class Agent implements OnInit {
   readonly mobileSidebarOpen = signal(false);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
+  private readonly backtestLaunch = inject(BacktestLaunchService);
 
   ngOnInit(): void {
     this.chat.loadConversations();
     this.route.paramMap.subscribe((params) => {
       const conversationId = params.get('conversationId');
-      if (conversationId && this.chat.activeConversationId() !== conversationId)
-        this.chat.openConversation(conversationId);
+      if (conversationId) {
+        const pendingBacktest = this.backtestLaunch.take(conversationId);
+        if (pendingBacktest) {
+          this.chat.openConversation(conversationId, () =>
+            this.chat.sendMessage(pendingBacktest.message, pendingBacktest.parameters));
+        } else if (this.chat.activeConversationId() !== conversationId) {
+          this.chat.openConversation(conversationId);
+        }
+      }
       else if (!conversationId && this.chat.activeConversationId())
         this.chat.startNewConversation();
     });

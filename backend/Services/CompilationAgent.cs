@@ -31,7 +31,10 @@ public sealed class CompilationAgent(
         CancellationToken cancellationToken = default,
         Func<string, Task>? onProgress = null)
     {
-        if (string.IsNullOrWhiteSpace(request.Description))
+        // Existing bots may have changed source since their last compile. Generate
+        // their card description from the exact source being compiled, even if a
+        // caller supplied a description from an earlier version.
+        if (request.BotId is not null || string.IsNullOrWhiteSpace(request.Description))
         {
             var description = await codeGenerator.DescribeAsync(request.BotName, request.SourceCode, cancellationToken);
             request = new CompileCbotToolRequest

@@ -1,6 +1,9 @@
+import { BacktestParameters } from './backtest_dtos';
+
 export interface AgentMessageRequest {
   conversationId: string | null;
   message: string;
+  backtest?: BacktestParameters;
 }
 
 export interface AgentMessageResponse {

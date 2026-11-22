@@ -20,6 +20,10 @@ export class CbotsService {
     return this.http.put<void>(`${this.apiUrl}/${botId}/source`, { sourceCode });
   }
 
+  delete(botId: string) {
+    return this.http.delete<void>(`${this.apiUrl}/${botId}`);
+  }
+
   compile(botId: string) {
     return this.http.post<CompileCbotResponse>(`${this.apiUrl}/${botId}/compile`, {});
   }

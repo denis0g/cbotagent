@@ -15,8 +15,8 @@ import { TopNav } from './components/top-nav/top-nav';
         [class.overflow-y-auto]="isCbotDetailRoute()"
         [class.cbot-scrollbar]="isCbotDetailRoute()"
         [class.cbot-scrollbar-page]="isCbotDetailRoute()"
-        [class.items-center]="!isAgentRoute() && !isCbotRoute()"
-        [class.justify-center]="!isAgentRoute() && !isCbotRoute()"
+        [class.items-center]="!isAgentRoute() && !isCbotRoute() && !isBacktestRoute()"
+        [class.justify-center]="!isAgentRoute() && !isCbotRoute() && !isBacktestRoute()"
       >
         <router-outlet />
       </main>
@@ -27,6 +27,7 @@ export class App {
   private readonly router = inject(Router);
   readonly isAgentRoute = signal(this.router.url.split('?')[0].startsWith('/agent'));
   readonly isCbotRoute = signal(this.router.url.split('?')[0] === '/cbots' || this.router.url.split('?')[0].startsWith('/cbots/'));
+  readonly isBacktestRoute = signal(this.router.url.split('?')[0] === '/backtest' || this.router.url.split('?')[0].startsWith('/backtest/'));
   readonly isCbotDetailRoute = signal(/^\/cbots\/[^/]+$/.test(this.router.url.split('?')[0]));
 
   constructor() {
@@ -34,6 +35,7 @@ export class App {
       const url = (event as NavigationEnd).urlAfterRedirects.split('?')[0];
       this.isAgentRoute.set(url.startsWith('/agent'));
       this.isCbotRoute.set(url === '/cbots' || url.startsWith('/cbots/'));
+      this.isBacktestRoute.set(url === '/backtest' || url.startsWith('/backtest/'));
       this.isCbotDetailRoute.set(/^\/cbots\/[^/]+$/.test(url));
     });
   }

@@ -11,16 +11,25 @@ public sealed class CbotAgentTools(
     StrategyRefinerAgent strategyRefiner,
     CodeGenerationAgent codeGenerator,
     CompilationAgent compilationAgent,
+    BacktestingAgent backtestingAgent,
     Guid conversationId,
     Guid userId,
     string initialPrompt,
+    BacktestParameters? backtestParameters = null,
     Func<Guid, string, Task>? onConversationTitleUpdated = null,
     Func<string, Task>? onCompilationProgress = null)
 {
+    public sealed class BacktestToolSummary
+    {
+        public required bool Succeeded { get; init; }
+        public required string Message { get; init; }
+        public Guid? RunId { get; init; }
+    }
+
     public const string ToolGroupName = "CbotAgentTools";
     public const string ToolGroupDescription = "Tools available to the cBot orchestration agent for conversation management and cBot specialist delegation.";
 
-    public IList<AITool> CreateAgentTools(bool includeConversationTitle = true)
+    public IList<AITool> CreateAgentTools(bool includeConversationTitle = true, bool includeBacktesting = false)
     {
         var tools = new List<AITool>
         {
@@ -30,6 +39,8 @@ public sealed class CbotAgentTools(
         };
         if (includeConversationTitle)
             tools.Insert(0, AIFunctionFactory.Create(UpdateConversationTitleAsync));
+        if (includeBacktesting)
+            tools.Add(AIFunctionFactory.Create(RunCbotBacktestAsync));
         return tools;
     }
 
@@ -74,4 +85,21 @@ public sealed class CbotAgentTools(
         [Description("The 2–3 sentence description returned with this bot's generated source code, if available.")] string? description = null,
         CancellationToken cancellationToken = default) => CompileCbotCodeAsync(
             new CompileCbotToolRequest { BotName = botName, SourceCode = sourceCode, Description = description ?? string.Empty }, cancellationToken);
+
+    [Description("Backtest mode only: delegate the selected bot and its user-supplied settings to the backtesting specialist. Call once when the user requested a backtest. Do not modify the settings or claim results before it returns.")]
+    public async Task<BacktestToolSummary> RunCbotBacktestAsync(CancellationToken cancellationToken = default)
+    {
+        if (backtestParameters is null)
+            throw new InvalidOperationException("No backtest settings were supplied for this conversation turn.");
+        var result = await backtestingAgent.RunAsync(
+            backtestParameters.BotId, userId, backtestParameters, cancellationToken);
+        return new BacktestToolSummary
+        {
+            Succeeded = result.Succeeded,
+            Message = result.Succeeded
+                ? "Backtest completed and both report files were saved. The user can review the analysis and reports on the Backtesting page."
+                : result.Output,
+            RunId = result.RunId
+        };
+    }
 }

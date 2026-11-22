@@ -206,6 +206,104 @@ namespace backend.Migrations
                     b.Navigation("Conversation");
 
                     b.Navigation("User");
+
+                });
+
+            modelBuilder.Entity("backend.Models.BacktestRun", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Account")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<decimal>("Balance")
+                        .HasColumnType("numeric");
+
+                    b.Property<Guid>("CbotId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime?>("CompletedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<decimal>("Commission")
+                        .HasColumnType("numeric");
+
+                    b.Property<string>("DataMode")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<DateOnly>("End")
+                        .HasColumnType("date");
+
+                    b.Property<string>("HtmlReportPath")
+                        .HasColumnType("text");
+
+                    b.Property<string>("HtmlReportUrl")
+                        .HasColumnType("text");
+
+                    b.Property<string>("JsonReportPath")
+                        .HasColumnType("text");
+
+                    b.Property<string>("JsonReportUrl")
+                        .HasColumnType("text");
+
+                    b.Property<string>("Output")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("PerformanceOverview")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("Period")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<decimal>("Spread")
+                        .HasColumnType("numeric");
+
+                    b.Property<DateOnly>("Start")
+                        .HasColumnType("date");
+
+                    b.Property<DateTime>("StartedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("SuggestedImprovements")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("Symbol")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CbotId", "StartedAt");
+
+                    b.ToTable("BacktestRuns");
+                });
+
+            modelBuilder.Entity("backend.Models.BacktestRun", b =>
+                {
+                    b.HasOne("backend.Models.Cbot", "Cbot")
+                        .WithMany("BacktestRuns")
+                        .HasForeignKey("CbotId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Cbot");
+                });
+
+            modelBuilder.Entity("backend.Models.Cbot", b =>
+                {
+                    b.Navigation("BacktestRuns");
                 });
 
             modelBuilder.Entity("backend.Models.Conversation", b =>

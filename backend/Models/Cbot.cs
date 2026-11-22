@@ -16,4 +16,5 @@ public sealed class Cbot
     public string LastCompileOutput { get; set; } = string.Empty;
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
+    public ICollection<BacktestRun> BacktestRuns { get; set; } = new List<BacktestRun>();
 }

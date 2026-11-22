@@ -6,6 +6,8 @@ public sealed class AgentMessageRequest
 {
     public Guid? ConversationId { get; set; }
 
+    public BacktestParameters? Backtest { get; set; }
+
     [Required, StringLength(12000, MinimumLength = 1)]
     public required string Message { get; set; }
 }

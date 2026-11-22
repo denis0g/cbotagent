@@ -9,8 +9,9 @@ export const routes: Routes = [
   { path: 'agent/:conversationId', canActivate: [authGuard], loadComponent: () => import('./pages/agent/agent').then((m) => m.Agent) },
   { path: 'cbots', canActivate: [authGuard], loadComponent: () => import('./pages/cbots/cbots').then((m) => m.Cbots) },
   { path: 'cbots/:botId', canActivate: [authGuard], loadComponent: () => import('./pages/cbot-detail/cbot-detail').then((m) => m.CbotDetail) },
+  { path: 'backtest', canActivate: [authGuard], loadComponent: () => import('./pages/backtest/backtest').then((m) => m.Backtest) },
+  { path: 'backtest/:botId', canActivate: [authGuard], loadComponent: () => import('./pages/backtest-results/backtest-results').then((m) => m.BacktestResults) },
   ...[
-    ['backtest', 'Backtest', 'Test your strategies against historical market data.'],
     ['deploy-live', 'Deploy live', 'Deploy strategies to your live trading account.'],
   ].map(([path, title, description]) => ({
     path, canActivate: [authGuard],

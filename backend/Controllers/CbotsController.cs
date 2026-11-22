@@ -39,6 +39,16 @@ public sealed class CbotsController(CbotsService cbots, CompilationAgent compile
             : NotFound();
     }
 
+    [HttpDelete("{botId:guid}")]
+    public async Task<IActionResult> Delete(Guid botId, CancellationToken cancellationToken)
+    {
+        var userId = await GetCurrentUserIdAsync(cancellationToken);
+        if (userId is null) return Unauthorized();
+        return await cbots.DeleteAsync(botId, userId.Value, cancellationToken)
+            ? NoContent()
+            : NotFound();
+    }
+
     [HttpPost("{botId:guid}/compile")]
     public async Task<ActionResult<CompileCbotToolResponse>> Compile(Guid botId, CancellationToken cancellationToken)
     {

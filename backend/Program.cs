@@ -58,6 +58,9 @@ builder.Services.AddScoped<StrategyRefinerAgent>();
 builder.Services.AddScoped<CodeGenerationAgent>();
 builder.Services.AddScoped<CompilationAgent>();
 builder.Services.AddScoped<CompilationAgentTools>();
+builder.Services.AddScoped<BacktestingDockerTool>();
+builder.Services.AddScoped<BacktestingAgent>();
+builder.Services.AddScoped<BacktestReportAnalyzer>();
 builder.Services.AddScoped<GeminiClient>();
 
 var app = builder.Build();

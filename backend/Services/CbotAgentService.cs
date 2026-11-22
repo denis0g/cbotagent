@@ -15,7 +15,8 @@ public sealed class CbotAgentService(
     GeminiClient geminiClient,
     StrategyRefinerAgent strategyRefiner,
     CodeGenerationAgent codeGenerator,
-    CompilationAgent compilationAgent)
+    CompilationAgent compilationAgent,
+    BacktestingAgent backtestingAgent)
 {
     public const string AgentName = "CbotOrchestratorAgent";
     public const string AgentDescription = "Coordinates the cTrader cBot workflow: clarifies and refines the strategy, obtains strategy and source-code approvals, generates code, and compiles only after approval.";
@@ -112,9 +113,14 @@ public sealed class CbotAgentService(
             ? request.Message.Trim()
             : await conversations.GetInitialUserPromptAsync(conversation.Id, cancellationToken) ?? request.Message.Trim();
         var tools = new CbotAgentTools(conversations, strategyRefiner, codeGenerator, compilationAgent,
-            conversation.Id, userId, initialPrompt, OnToolTitleUpdated, onCompilationProgress);
-        var agent = geminiClient.CreateAgent(AgentName, AgentDescription, Instructions,
-            tools.CreateAgentTools(includeConversationTitle: isNewConversation));
+            backtestingAgent, conversation.Id, userId, initialPrompt, request.Backtest,
+            OnToolTitleUpdated, onCompilationProgress);
+        var agentInstructions = request.Backtest is null
+            ? Instructions
+            : $"{Instructions}\n\nBACKTEST MODE: this turn includes an approved, validated settings bundle and a dedicated run_cbot_backtest tool. Call that tool exactly once, do not call any other tool, do not ask follow-up questions, and do not invent performance results. On success, direct the user to the Backtesting page to review the saved analysis and reports.";
+        var agent = geminiClient.CreateAgent(AgentName, AgentDescription, agentInstructions,
+            tools.CreateAgentTools(includeConversationTitle: isNewConversation,
+                includeBacktesting: request.Backtest is not null));
 
         FrameworkSession frameworkSession;
         var hasSavedFrameworkSession = TryParseSession(sessionRecord.StateJson, out var savedState);
@@ -137,7 +143,10 @@ public sealed class CbotAgentService(
 
         var now = DateTime.UtcNow;
         var reply = new System.Text.StringBuilder();
-        await foreach (var update in agent.RunStreamingAsync(request.Message.Trim(), frameworkSession,
+        var agentPrompt = request.Backtest is null
+            ? request.Message.Trim()
+            : $"{request.Message.Trim()}\n\nA validated cTrader backtest request for cBot {request.Backtest.BotId} is attached to the backtest tool. Call that tool exactly once now; do not ask for settings or credentials again.";
+        await foreach (var update in agent.RunStreamingAsync(agentPrompt, frameworkSession,
                            cancellationToken: cancellationToken))
         {
             var text = update.Text;

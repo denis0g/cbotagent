@@ -1,3 +1,4 @@
+using System.Globalization;
 using backend.Dtos;
 using backend.Models;
 using Data;
@@ -135,6 +136,65 @@ public sealed class CbotsService(AppDatabaseContext db, IConfiguration configura
         return true;
     }
 
+    public async Task<bool> DeleteAsync(Guid botId, Guid userId, CancellationToken cancellationToken = default)
+    {
+        var bot = await db.Cbots.FirstOrDefaultAsync(
+            item => item.Id == botId && item.UserId == userId, cancellationToken);
+        if (bot is null) return false;
+
+        var artifactPaths = new HashSet<string>(OperatingSystem.IsWindows()
+            ? StringComparer.OrdinalIgnoreCase
+            : StringComparer.Ordinal)
+        {
+            ResolvePath(bot.SourceCodePath)
+        };
+        if (!string.IsNullOrWhiteSpace(bot.AlgoFilePath))
+        {
+            artifactPaths.Add(ResolveAlgoPath(bot.AlgoFilePath));
+            // Older bot records may have stored the .algo alongside their source.
+            artifactPaths.Add(ResolvePath(bot.AlgoFilePath));
+        }
+        var oldBacktestRuns = await db.BacktestRuns.Where(run => run.CbotId == botId).ToListAsync(cancellationToken);
+        var reportPaths = oldBacktestRuns
+            .SelectMany(run => new[] { run.HtmlReportPath, run.JsonReportPath })
+            .Where(path => !string.IsNullOrWhiteSpace(path))
+            .Select(path => ResolveBacktestPath(path!))
+            .ToHashSet(OperatingSystem.IsWindows() ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal);
+
+        foreach (var path in artifactPaths)
+            if (File.Exists(path)) File.Delete(path);
+        foreach (var path in reportPaths)
+            if (File.Exists(path)) File.Delete(path);
+
+        db.Cbots.Remove(bot);
+        await db.SaveChangesAsync(cancellationToken);
+
+        PruneEmptyDirectories(artifactPaths, GetStorageRoot());
+        PruneEmptyDirectories(artifactPaths, GetAlgoStorageRoot());
+        PruneEmptyDirectories(reportPaths, GetBacktestStorageRoot());
+        return true;
+    }
+
+    private static void PruneEmptyDirectories(IEnumerable<string> paths, string storageRoot)
+    {
+        var root = Path.GetFullPath(storageRoot);
+        var rootWithSeparator = root.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)
+            + Path.DirectorySeparatorChar;
+        var comparison = OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
+        foreach (var path in paths)
+        {
+            var directory = Path.GetDirectoryName(path);
+            while (!string.IsNullOrEmpty(directory)
+                && directory.StartsWith(rootWithSeparator, comparison)
+                && Directory.Exists(directory)
+                && !Directory.EnumerateFileSystemEntries(directory).Any())
+            {
+                Directory.Delete(directory);
+                directory = Path.GetDirectoryName(directory);
+            }
+        }
+    }
+
     public async Task<CompileCbotToolRequest?> CreateCompileRequestAsync(Guid botId, Guid userId, CancellationToken cancellationToken = default)
     {
         var bot = await db.Cbots.AsNoTracking().FirstOrDefaultAsync(
@@ -172,6 +232,138 @@ public sealed class CbotsService(AppDatabaseContext db, IConfiguration configura
         var sourcePath = ResolvePath(relativePath);
         return File.Exists(sourcePath) ? sourcePath : null;
     }
+
+    public async Task<Guid?> StartBacktestRunAsync(
+        Guid botId, Guid userId, BacktestParameters parameters, CancellationToken cancellationToken = default)
+    {
+        var bot = await db.Cbots.FirstOrDefaultAsync(
+            item => item.Id == botId && item.UserId == userId, cancellationToken);
+        if (bot is null) return null;
+        if (!DateOnly.TryParseExact(parameters.Start, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var start)
+            || !DateOnly.TryParseExact(parameters.End, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var end))
+            return null;
+
+        var run = new BacktestRun
+        {
+            Id = Guid.NewGuid(),
+            CbotId = botId,
+            Status = "Running",
+            Account = parameters.Account,
+            Symbol = parameters.Symbol.Trim(),
+            Period = parameters.Period.Trim(),
+            Start = start,
+            End = end,
+            DataMode = parameters.DataMode,
+            Balance = parameters.Balance,
+            Commission = parameters.Commission,
+            Spread = parameters.Spread,
+            Output = "Backtest is running.",
+            StartedAt = DateTime.UtcNow
+        };
+        db.BacktestRuns.Add(run);
+        await db.SaveChangesAsync(cancellationToken);
+        return run.Id;
+    }
+
+    public async Task<bool> CompleteBacktestRunAsync(
+        Guid runId, Guid userId, string htmlSource, string jsonSource, string output,
+        CancellationToken cancellationToken = default)
+    {
+        var run = await db.BacktestRuns.Include(item => item.Cbot)
+            .FirstOrDefaultAsync(item => item.Id == runId && item.Cbot.UserId == userId, cancellationToken);
+        if (run is null) return false;
+        if (!File.Exists(htmlSource) || !File.Exists(jsonSource))
+            throw new FileNotFoundException("The cTrader backtest did not produce both expected report files.");
+
+        var relativeDirectory = Path.Combine(run.CbotId.ToString("N"), run.Id.ToString("N"));
+        var directory = Path.Combine(GetBacktestStorageRoot(), relativeDirectory);
+        Directory.CreateDirectory(directory);
+        var fileName = SanitizeName(run.Cbot.Name);
+        var htmlRelative = Path.Combine(relativeDirectory, $"{fileName}.html");
+        var jsonRelative = Path.Combine(relativeDirectory, $"{fileName}.json");
+        File.Copy(htmlSource, ResolveBacktestPath(htmlRelative), overwrite: true);
+        File.Copy(jsonSource, ResolveBacktestPath(jsonRelative), overwrite: true);
+
+        run.Status = "Succeeded";
+        run.Output = output;
+        run.HtmlReportPath = htmlRelative;
+        run.JsonReportPath = jsonRelative;
+        run.HtmlReportUrl = $"/api/backtests/runs/{run.Id}/report/html";
+        run.JsonReportUrl = $"/api/backtests/runs/{run.Id}/report/json";
+        run.CompletedAt = DateTime.UtcNow;
+        await db.SaveChangesAsync(cancellationToken);
+        return true;
+    }
+
+    public async Task SaveBacktestAnalysisAsync(Guid runId, Guid userId, string overview,
+        IReadOnlyList<string> improvements, CancellationToken cancellationToken = default)
+    {
+        var run = await db.BacktestRuns.Include(item => item.Cbot)
+            .FirstOrDefaultAsync(item => item.Id == runId && item.Cbot.UserId == userId, cancellationToken);
+        if (run is null || run.Status != "Succeeded") return;
+        run.PerformanceOverview = overview;
+        run.SuggestedImprovements = System.Text.Json.JsonSerializer.Serialize(improvements);
+        await db.SaveChangesAsync(cancellationToken);
+    }
+
+    public async Task MarkBacktestFailedAsync(Guid runId, Guid userId, string output,
+        CancellationToken cancellationToken = default)
+    {
+        var run = await db.BacktestRuns.Include(item => item.Cbot)
+            .FirstOrDefaultAsync(item => item.Id == runId && item.Cbot.UserId == userId, cancellationToken);
+        if (run is null) return;
+        run.Status = "Failed";
+        run.Output = output;
+        run.CompletedAt = DateTime.UtcNow;
+        await db.SaveChangesAsync(cancellationToken);
+    }
+
+    public async Task<BacktestRunDto?> GetLatestBacktestAsync(
+        Guid botId, Guid userId, CancellationToken cancellationToken = default)
+    {
+        var run = await db.BacktestRuns.AsNoTracking().Include(item => item.Cbot)
+            .Where(item => item.CbotId == botId && item.Cbot.UserId == userId)
+            .OrderByDescending(item => item.StartedAt)
+            .FirstOrDefaultAsync(cancellationToken);
+        return run is null ? null : ToBacktestRunDto(run);
+    }
+
+    public async Task<string?> GetBacktestReportPathAsync(
+        Guid runId, Guid userId, string extension, CancellationToken cancellationToken = default)
+    {
+        if (extension is not ("html" or "json")) return null;
+        var run = await db.BacktestRuns.AsNoTracking().Include(item => item.Cbot)
+            .FirstOrDefaultAsync(item => item.Id == runId && item.Cbot.UserId == userId, cancellationToken);
+        if (run is null) return null;
+        var relativePath = extension == "html" ? run.HtmlReportPath : run.JsonReportPath;
+        if (relativePath is null) return null;
+        var path = ResolveBacktestPath(relativePath);
+        return File.Exists(path) ? path : null;
+    }
+
+    private static BacktestRunDto ToBacktestRunDto(BacktestRun run) => new()
+    {
+        Id = run.Id,
+        BotId = run.CbotId,
+        BotName = run.Cbot.Name,
+        Status = run.Status,
+        Account = run.Account,
+        Symbol = run.Symbol,
+        Period = run.Period,
+        Start = run.Start,
+        End = run.End,
+        DataMode = run.DataMode,
+        Balance = run.Balance,
+        Commission = run.Commission,
+        Spread = run.Spread,
+        Output = run.Output,
+        PerformanceOverview = run.PerformanceOverview,
+        SuggestedImprovements = System.Text.Json.JsonSerializer.Deserialize<List<string>>(run.SuggestedImprovements) ?? [],
+        StartedAt = run.StartedAt,
+        CompletedAt = run.CompletedAt,
+        HtmlReportUrl = run.HtmlReportUrl,
+        JsonReportUrl = run.JsonReportUrl
+    };
 
     public async Task<bool> SaveFailedCompilationAsync(
         CompileCbotToolRequest request, string output, CancellationToken cancellationToken = default)
@@ -216,6 +408,26 @@ public sealed class CbotsService(AppDatabaseContext db, IConfiguration configura
         return string.IsNullOrWhiteSpace(configured)
             ? Path.Combine(Path.GetFullPath(environment.ContentRootPath), "Algos")
             : Path.GetFullPath(configured, environment.ContentRootPath);
+    }
+
+    private string GetBacktestStorageRoot()
+    {
+        var configured = configuration["CTrader:BacktestDirectory"];
+        return string.IsNullOrWhiteSpace(configured)
+            ? Path.Combine(Path.GetFullPath(environment.ContentRootPath), "Backtests")
+            : Path.GetFullPath(configured, environment.ContentRootPath);
+    }
+
+    private string ResolveBacktestPath(string relativePath)
+    {
+        var normalized = relativePath.Replace('\\', Path.DirectorySeparatorChar).Replace('/', Path.DirectorySeparatorChar);
+        var root = GetBacktestStorageRoot();
+        var path = Path.GetFullPath(Path.Combine(root, normalized));
+        var allowedRoot = Path.GetFullPath(root) + Path.DirectorySeparatorChar;
+        var comparison = OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
+        if (!path.StartsWith(allowedRoot, comparison))
+            throw new InvalidOperationException("The backtest report path is outside the configured report directory.");
+        return path;
     }
 
     private bool AlgoFileExists(string relativePath)

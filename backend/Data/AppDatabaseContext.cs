@@ -15,6 +15,7 @@ public class AppDatabaseContext : DbContext
     public DbSet<ConversationMessage> ConversationMessages { get; set; }
     public DbSet<AgentSession> AgentSessions { get; set; }
     public DbSet<Cbot> Cbots { get; set; }
+    public DbSet<BacktestRun> BacktestRuns { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -55,5 +56,13 @@ public class AppDatabaseContext : DbContext
             .OnDelete(DeleteBehavior.Cascade);
         modelBuilder.Entity<Cbot>()
             .HasIndex(cbot => new { cbot.UserId, cbot.UpdatedAt });
+
+        modelBuilder.Entity<BacktestRun>()
+            .HasOne(run => run.Cbot)
+            .WithMany(cbot => cbot.BacktestRuns)
+            .HasForeignKey(run => run.CbotId)
+            .OnDelete(DeleteBehavior.Cascade);
+        modelBuilder.Entity<BacktestRun>()
+            .HasIndex(run => new { run.CbotId, run.StartedAt });
     }
 }

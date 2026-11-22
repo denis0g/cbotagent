@@ -10,6 +10,7 @@ import {
   ConversationMessage,
   ConversationSummary,
 } from '../interfaces/agent_dtos';
+import { BacktestParameters } from '../interfaces/backtest_dtos';
 
 @Injectable({ providedIn: 'root' })
 export class AgentChatService {
@@ -59,7 +60,7 @@ export class AgentChatService {
     this.progress.set('');
   }
 
-  openConversation(conversationId: string): void {
+  openConversation(conversationId: string, onLoaded?: () => void): void {
     const sequence = ++this.loadSequence;
     this.cancelActiveRequest();
     this.activeConversationIdState.set(conversationId);
@@ -73,6 +74,7 @@ export class AgentChatService {
         if (sequence !== this.loadSequence) return;
         this.messageState.set(conversation.messages);
         this.loadingMessages.set(false);
+        onLoaded?.();
       },
       error: (error: unknown) => {
         if (sequence !== this.loadSequence) return;
@@ -82,7 +84,7 @@ export class AgentChatService {
     });
   }
 
-  sendMessage(message: string): void {
+  sendMessage(message: string, backtest?: BacktestParameters): void {
     const content = message.trim();
     if (!content || this.sending()) return;
 
@@ -102,6 +104,7 @@ export class AgentChatService {
     const request: AgentMessageRequest = {
       conversationId: requestConversationId,
       message: content,
+      ...(backtest ? { backtest } : {}),
     };
     const requestSequence = this.loadSequence;
     const controller = new AbortController();
