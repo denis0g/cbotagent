@@ -2,23 +2,25 @@
 
 The backend uses Docker.DotNet to create and remove a short-lived .NET 10 SDK container, and bind-mounts `CTrader:BuildRoot` into it. The temporary project and generated `.algo` must be visible at the same absolute path to both the backend and the Docker daemon. After compilation, source files remain in `CTrader:BotDirectory`; `.algo` files are copied into `backend/Algos/<bot-folder>/` by default. Set `CTrader:AlgoDirectory` to another absolute path and mount it when deploying the backend in a container.
 
-When the backend runs directly on the Docker host, set `CTrader__BuildRoot` to a writable host directory. When the backend itself runs in Docker, mount the Docker socket and host build and bot directories at the configured paths. Docker.DotNet communicates through the socket, so the backend image does not need the Docker CLI. For example:
+When the backend runs directly on the Docker host, the local `.env` uses writable directories under `/home/dn`. When the backend itself runs in Docker, mount the Docker socket and host data directories at the same absolute paths configured in `.env`. Docker.DotNet communicates through the socket, so the backend image does not need the Docker CLI. For example:
 
 ```yaml
 services:
   backend:
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
-      - /srv/ctrader-builds:/srv/ctrader-builds
-      - /srv/ctrader-bots:/srv/ctrader-bots
+      - /home/dn/ctrader-builds:/home/dn/ctrader-builds
+      - /home/dn/ctrader-bots:/home/dn/ctrader-bots
+      - /home/dn/ctrader-backtests:/home/dn/ctrader-backtests
     environment:
       CTrader__DockerImage: mcr.microsoft.com/dotnet/sdk:10.0-alpine
-      CTrader__BuildRoot: /srv/ctrader-builds
+      CTrader__BuildRoot: /home/dn/ctrader-builds
       CTrader__BuildTimeoutMinutes: 5
-      CTrader__BotDirectory: /srv/ctrader-bots
+      CTrader__BotDirectory: /home/dn/ctrader-bots
+      CTrader__BacktestDirectory: /home/dn/ctrader-backtests
 ```
 
-Create the host directories and grant the backend container's user write access. Avoid world-writable permissions for production. The compiler uses a persistent Docker volume named `ctrader-nuget-cache` for restored packages. Its build timeout defaults to five minutes and can be configured from one to sixty minutes.
+Create the host directories and grant the backend container's user write access. Avoid world-writable permissions for production. On Linux, the compiler container runs as the backend process's UID and GID; its home directory and NuGet package cache live in the temporary build workspace and are removed after each run. Its build timeout defaults to five minutes and can be configured from one to sixty minutes.
 
 ## cTrader CLI backtests
 

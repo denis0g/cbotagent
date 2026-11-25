@@ -7,6 +7,7 @@ namespace backend.Services;
 
 public sealed class ConversationsService(AppDatabaseContext db)
 {
+    private const string DefaultConversationTitle = "New conversation";
     public async Task<Conversation> CreateAsync(Guid userId, CancellationToken cancellationToken = default)
     {
         var conversation = new Conversation { UserId = userId, Session = new AgentSession() };
@@ -72,11 +73,14 @@ public sealed class ConversationsService(AppDatabaseContext db)
     {
         var conversation = await GetOwnedAsync(conversationId, userId, cancellationToken)
             ?? throw new KeyNotFoundException("Conversation not found.");
-        var hasMessages = await db.ConversationMessages.AnyAsync(
-            message => message.ConversationId == conversationId, cancellationToken);
-        if (conversation.Title == "New conversation" && !hasMessages)
+        var normalizedTitle = title.Trim();
+        if (string.IsNullOrWhiteSpace(normalizedTitle)
+            || string.Equals(normalizedTitle, DefaultConversationTitle, StringComparison.OrdinalIgnoreCase))
+            return new UpdateConversationTitleToolResponse { ConversationId = conversation.Id, Title = conversation.Title };
+
+        if (string.Equals(conversation.Title, DefaultConversationTitle, StringComparison.OrdinalIgnoreCase))
         {
-            conversation.Title = title.Trim();
+            conversation.Title = normalizedTitle;
             conversation.UpdatedAt = DateTime.UtcNow;
             await db.SaveChangesAsync(cancellationToken);
         }

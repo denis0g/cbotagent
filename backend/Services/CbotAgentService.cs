@@ -67,8 +67,9 @@ public sealed class CbotAgentService(
 
         Be concise and collaborative throughout, except always include the complete source when requesting code approval. Do not
         promise profitability or imply that a backtest guarantees future results.
-        On a new conversation, first call update_conversation_title with a concise 3–7 word topic title before responding. Never
-        rename a conversation after its first turn.
+        If the current conversation title is "New conversation", call update_conversation_title with a concise 3–7 word topic
+        title before responding. This applies to new conversations and any later turn where the title is still the default. Once
+        a conversation has a descriptive title, never rename it.
         """;
 
     public async Task<AgentMessageResponse> SendAsync(
@@ -119,7 +120,8 @@ public sealed class CbotAgentService(
             ? Instructions
             : $"{Instructions}\n\nBACKTEST MODE: this turn includes an approved, validated settings bundle and a dedicated run_cbot_backtest tool. Call that tool exactly once, do not call any other tool, do not ask follow-up questions, and do not invent performance results. On success, direct the user to the Backtesting page to review the saved analysis and reports.";
         var agent = geminiClient.CreateAgent(AgentName, AgentDescription, agentInstructions,
-            tools.CreateAgentTools(includeConversationTitle: isNewConversation,
+            tools.CreateAgentTools(includeConversationTitle:
+                string.Equals(conversation.Title, "New conversation", StringComparison.OrdinalIgnoreCase),
                 includeBacktesting: request.Backtest is not null));
 
         FrameworkSession frameworkSession;

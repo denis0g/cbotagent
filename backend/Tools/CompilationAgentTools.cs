@@ -1,5 +1,6 @@
 using System.ComponentModel;
 using System.Diagnostics;
+using System.Runtime.InteropServices;
 using backend.Dtos;
 using backend.Services;
 using Docker.DotNet;
@@ -18,8 +19,7 @@ public sealed class CompilationAgentTools(
     public const string ToolDescription = "Compiles cTrader Automate cBot source in the .NET 10 SDK Docker image and saves the source and .algo artifacts.";
 
     private const string DefaultSdkImage = "mcr.microsoft.com/dotnet/sdk:10.0-alpine";
-    private const string DefaultBuildRoot = "/srv/ctrader-builds";
-    private const string NuGetCacheVolume = "ctrader-nuget-cache";
+    private const string DefaultBuildRoot = "/home/dn/ctrader-builds";
     private const int DefaultTimeoutMinutes = 5;
 
     [Description(ToolDescription)]
@@ -102,18 +102,21 @@ public sealed class CompilationAgentTools(
                 await onProgress("Starting the .NET 10 compilation container using the local SDK image…");
 
             logger.LogInformation("[Compilation] Creating container from local image {Image} for {BotName}.", image, botName);
+            var containerUser = OperatingSystem.IsLinux() ? $"{GetEffectiveUserId()}:{GetEffectiveGroupId()}" : null;
             var container = await dockerClient.Containers.CreateContainerAsync(new CreateContainerParameters
             {
                 Image = image,
+                User = containerUser,
                 WorkingDir = $"/workspace/{botName}",
+                Env = [
+                    "HOME=/workspace/.home",
+                    "DOTNET_CLI_HOME=/workspace/.home",
+                    "NUGET_PACKAGES=/workspace/.nuget/packages"
+                ],
                 Cmd = ["dotnet", "build", "-c", "Release", "--verbosity", "minimal", "--nologo"],
                 HostConfig = new HostConfig
                 {
-                    Binds =
-                    [
-                        $"{tempRoot}:/workspace",
-                        $"{NuGetCacheVolume}:/root/.nuget/packages"
-                    ]
+                    Binds = [$"{tempRoot}:/workspace"]
                 }
             }, timeout.Token);
             containerId = container?.ID ?? string.Empty;
@@ -298,6 +301,16 @@ public sealed class CompilationAgentTools(
             char.IsAsciiLetterOrDigit(character) || character is '-' or '_' ? character : '_').ToArray());
         return sanitized.Trim('_', '-');
     }
+
+    private static uint GetEffectiveUserId() => geteuid();
+
+    private static uint GetEffectiveGroupId() => getegid();
+
+    [DllImport("libc", EntryPoint = "geteuid")]
+    private static extern uint geteuid();
+
+    [DllImport("libc", EntryPoint = "getegid")]
+    private static extern uint getegid();
 
     private async Task<CompileCbotToolResponse> BuildFailedAsync(
         CompileCbotToolRequest request,

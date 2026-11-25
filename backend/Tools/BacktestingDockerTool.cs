@@ -38,7 +38,7 @@ public sealed class BacktestingDockerTool(
         string? algoPath = null;
 
         var buildRoot = Path.GetFullPath(configuration["CTrader:BuildRoot"]
-            ?? Path.Combine(Path.GetTempPath(), "ctrader-builds"));
+            ?? "/home/dn/ctrader-builds");
         var tempRoot = Path.Combine(buildRoot, "backtest-" + Guid.NewGuid().ToString("N"));
         var passwordRoot = Path.Combine(buildRoot, "backtest-secret-" + Guid.NewGuid().ToString("N"));
         var containerId = string.Empty;
